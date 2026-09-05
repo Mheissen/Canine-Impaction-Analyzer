@@ -1,0 +1,16 @@
+CANINE IMPACTION ANALYZER — COPYRIGHT NOTICE
+
+© 2026 Samer Mheissen. All rights reserved.
+
+This software and its accompanying documentation are protected by copyright.
+
+Permission is granted for personal research evaluation and non-commercial
+testing only unless separate written permission is provided by the copyright
+holder.
+
+Redistribution, modification, sublicensing, sale, or commercial use is not
+authorized without prior written permission from Samer Mheissen.
+
+THIS SOFTWARE IS PROVIDED FOR RESEARCH PURPOSES. IT IS NOT A VALIDATED MEDICAL
+DEVICE AND MUST NOT BE USED AS A SUBSTITUTE FOR PROFESSIONAL CLINICAL
+DIAGNOSIS, JUDGMENT, OR TREATMENT PLANNING.
