@@ -17,7 +17,7 @@ if exist "%VENV%" rmdir /s /q "%VENV%"
 py -m venv "%VENV%" || goto :fail
 call "%VENV%\Scripts\activate.bat" || goto :fail
 python -m pip install --upgrade pip setuptools wheel --no-cache-dir || goto :fail
-python -m pip install --no-cache-dir -r "%~dp0requirements.txt" || goto :fail
+python -m pip install --no-cache-dir Pillow || goto :fail
 cd /d "%~dp0"
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
