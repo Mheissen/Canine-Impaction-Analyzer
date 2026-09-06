@@ -21,32 +21,54 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Create macOS icon
+        run: |
+          mkdir PDC_Analyzer.iconset
+
+          sips -z 16 16     PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_16x16.png
+          sips -z 32 32     PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_16x16@2x.png
+
+          sips -z 32 32     PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_32x32.png
+          sips -z 64 64     PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_32x32@2x.png
+
+          sips -z 128 128   PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_128x128.png
+          sips -z 256 256   PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_128x128@2x.png
+
+          sips -z 256 256   PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_256x256.png
+          sips -z 512 512   PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_256x256@2x.png
+
+          sips -z 512 512   PDC_Analyzer_Icon.png --out PDC_Analyzer.iconset/icon_512x512.png
+          cp PDC_Analyzer_Icon.png PDC_Analyzer.iconset/icon_512x512@2x.png
+
+          iconutil -c icns PDC_Analyzer.iconset -o PDC_Analyzer_Icon.icns
+
       - name: Build macOS app
         run: |
           pyinstaller \
             --noconfirm \
             --windowed \
-            --name "Canine Impaction Analyzer" \
+            --name "PDC Analyzer" \
+            --icon "PDC_Analyzer_Icon.icns" \
             main.py
 
       - name: Create DMG staging folder
         run: |
           mkdir dmg_stage
-          cp -R "dist/Canine Impaction Analyzer.app" dmg_stage/
+          cp -R "dist/PDC Analyzer.app" dmg_stage/
           ln -s /Applications dmg_stage/Applications
 
       - name: Create DMG
         run: |
           hdiutil create \
-            -volname "Canine Impaction Analyzer" \
+            -volname "PDC Analyzer" \
             -srcfolder dmg_stage \
             -ov \
             -format UDZO \
-            CanineImpactionAnalyzer_v1.1.2_macOS.dmg
+            PDC-Analyzer-v1.1.2-macOS.dmg
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: CanineImpactionAnalyzer-v1.1.2-macOS-DMG
-          path: CanineImpactionAnalyzer_v1.1.2_macOS.dmg
+          name: PDC-Analyzer-v1.1.2-macOS-DMG
+          path: PDC-Analyzer-v1.1.2-macOS.dmg
           if-no-files-found: error
