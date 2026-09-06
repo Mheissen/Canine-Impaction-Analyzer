@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableExtensions
-title Canine Impaction Analyzer - Installer Builder
+title PDC Analyzer - Installer Builder
 set "BUILDROOT=C:\CIA_BUILD"
 set "VENV=%BUILDROOT%\venv"
 
 echo ============================================================
-echo CANINE IMPACTION ANALYZER - READY INSTALLER BUILD
+echo PDC ANALYZER - READY INSTALLER BUILD
 echo ============================================================
 echo This builds one normal Windows Setup EXE.
 echo End users will NOT need Python.
@@ -22,7 +22,7 @@ cd /d "%~dp0"
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist installer_output rmdir /s /q installer_output
-python -m PyInstaller --noconfirm --clean --windowed --name "Canine Impaction Analyzer" main.py || goto :fail
+python -m PyInstaller --noconfirm --clean --windowed --name "PDC Analyzer" --icon "PDC_Analyzer_Icon.png" main.py || goto :fail
 if not exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" (
   echo Installing Inno Setup...
   winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements || goto :fail
