@@ -1,0 +1,43 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Windows application
+        shell: cmd
+        run: build_windows.bat
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y
+
+      - name: Build installer
+        shell: cmd
+        run: build_installer_windows.bat
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: CanineImpactionAnalyzer-Setup-v1.1.2
+          path: installer_output/CanineImpactionAnalyzer_Setup_v1.1.2.exe
+          if-no-files-found: error
