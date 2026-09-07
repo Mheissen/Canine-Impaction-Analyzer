@@ -1,5 +1,5 @@
 #define MyAppName "PDC Analyzer"
-#define MyAppVersion "1.1.2"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Samer Mheissen"
 #define MyAppExeName "PDC Analyzer.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={localappdata}\Programs\PDC Analyzer
 DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 OutputDir=installer_output
-OutputBaseFilename=PDC-Analyzer-Setup-v1.1.2
+OutputBaseFilename=PDC-Analyzer-Setup-v1.2.0
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
