@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QComboBox, QPushButton, QLabel, QTextEdit, QSplitter, QGraphicsView,
     QGraphicsScene, QGraphicsPixmapItem, QGraphicsEllipseItem,
     QGraphicsLineItem, QGroupBox, QGraphicsItem, QGraphicsSimpleTextItem,
-    QDialog, QDialogButtonBox
+    QDialog, QDialogButtonBox, QInputDialog
 )
 
 
@@ -1327,35 +1327,6 @@ not a validated clinical decision rule.
         return self.traced_dir / f"{safe_patient_filename(patient_id)}_traced.png"
 
     def save_traced_image(self, output_path):
-        """
-        Save a flattened visual copy of the OPG plus the current tracing.
-        The editable coordinates are separately retained in the JSON record.
-        """
-        if self.view.pixmap_item is None:
-            return
-
-        rect = self.view.pixmap_item.boundingRect()
-        width = max(1, int(round(rect.width())))
-        height = max(1, int(round(rect.height())))
-
-        image = QImage(width, height, QImage.Format_ARGB32)
-        image.fill(Qt.white)
-
-        painter = QPainter(image)
-        self.view.scene().render(
-            painter,
-            target=QPointF(0, 0) if False else None
-        )
-        painter.end()
-
-        # QGraphicsScene.render() without a target QRectF can depend on
-        # scene extents. Re-render with explicit source/target if needed.
-        if image.isNull():
-            return
-
-        image.save(str(output_path), "PNG")
-
-    def save_traced_image(self, output_path):
         if self.view.pixmap_item is None:
             return False
 
@@ -1536,7 +1507,9 @@ not a validated clinical decision rule.
             self,
             "Patient Saved",
             f"Patient {patient_id} was {action} successfully.\n\n"
+            f"Patient data folder:\n{self.data_dir}\n\n"
             f"Results file:\n{self.master_results_path}\n\n"
+            f"Patient record:\n{record_path}\n\n"
             "The original OPG and editable tracing data were also saved."
         )
 
