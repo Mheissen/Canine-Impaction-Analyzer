@@ -44,5 +44,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PDC-Analyzer-Setup-v1.2.0
-          path: installer_output/PDC-Analyzer-Setup-v1.1.2.exe
+          path: installer_output/PDC-Analyzer-Setup-v1.2.0.exe
           if-no-files-found: error
