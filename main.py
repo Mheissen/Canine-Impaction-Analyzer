@@ -8,6 +8,9 @@ import threading
 import urllib.request
 import webbrowser
 import re
+import tempfile
+import subprocess
+import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -23,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 
-APP_NAME = "Canine Impaction Analyzer"
+APP_NAME = "PDC Analyzer"
 APP_VERSION = "1.2.1"
 DEVELOPER = "Samer Mheissen"
 
@@ -405,6 +408,8 @@ class MainWindow(QMainWindow):
 
     update_available = Signal(str, str)
     update_check_finished = Signal(str)
+    update_download_ready = Signal(str, str)
+    update_install_failed = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -431,6 +436,8 @@ class MainWindow(QMainWindow):
 
         self.update_available.connect(self.show_update_available)
         self.update_check_finished.connect(self.show_manual_update_result)
+        self.update_download_ready.connect(self._install_downloaded_update)
+        self.update_install_failed.connect(self._show_update_install_error)
 
         self.build_ui()
 
@@ -1741,39 +1748,50 @@ not a validated clinical decision rule.
                 }
             )
 
-            with urllib.request.urlopen(
-                request,
-                timeout=4
-            ) as response:
-                payload = json.loads(
-                    response.read().decode("utf-8")
-                )
+            with urllib.request.urlopen(request, timeout=8) as response:
+                payload = json.loads(response.read().decode("utf-8"))
 
             latest = str(payload.get("tag_name", "")).lstrip("vV")
-            release_url = str(
-                payload.get("html_url", GITHUB_RELEASES_URL)
-            )
+            release_url = str(payload.get("html_url", GITHUB_RELEASES_URL))
 
             settings = self._load_settings()
-            settings["last_update_check"] = (
-                datetime.now(timezone.utc).isoformat()
-            )
+            settings["last_update_check"] = datetime.now(timezone.utc).isoformat()
             self._save_settings(settings)
 
             if latest and version_tuple(latest) > version_tuple(APP_VERSION):
+                self._latest_release_payload = payload
                 self.update_available.emit(latest, release_url)
             elif manual:
                 self.update_check_finished.emit(
                     f"You are using the latest available version ({APP_VERSION})."
                 )
 
-        except Exception:
-            # Automatic checks remain completely silent if offline.
+        except Exception as exc:
             if manual:
                 self.update_check_finished.emit(
-                    "Could not check for updates. "
-                    "Please check your internet connection and try again."
+                    "Could not check for updates right now.\n\n"
+                    f"Details: {exc}"
                 )
+
+    def _select_update_asset(self, payload):
+        assets = payload.get("assets", []) or []
+
+        if os.name == "nt":
+            candidates = [
+                a for a in assets
+                if str(a.get("name", "")).lower().endswith(".exe")
+                and "pdc-analyzer-setup" in str(a.get("name", "")).lower()
+            ]
+        elif sys.platform == "darwin":
+            candidates = [
+                a for a in assets
+                if str(a.get("name", "")).lower().endswith(".dmg")
+                and "pdc-analyzer" in str(a.get("name", "")).lower()
+            ]
+        else:
+            candidates = []
+
+        return candidates[0] if candidates else None
 
     def show_update_available(self, latest_version, release_url):
         result = QMessageBox.question(
@@ -1781,13 +1799,211 @@ not a validated clinical decision rule.
             "PDC Analyzer Update",
             f"A newer version is available: v{latest_version}\n"
             f"Current version: v{APP_VERSION}\n\n"
-            "Open the download page now?",
+            "Download and install the update automatically now?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes
         )
 
-        if result == QMessageBox.Yes:
+        if result != QMessageBox.Yes:
+            return
+
+        payload = getattr(self, "_latest_release_payload", None)
+        if not payload:
+            QMessageBox.warning(
+                self,
+                "PDC Analyzer Update",
+                "The update information is no longer available. "
+                "Please choose Help > Check for Updates and try again."
+            )
+            return
+
+        asset = self._select_update_asset(payload)
+        if not asset:
+            QMessageBox.warning(
+                self,
+                "PDC Analyzer Update",
+                "No compatible installer was found for this operating system.\n\n"
+                "The GitHub release page will open instead."
+            )
             webbrowser.open(release_url)
+            return
+
+        if not getattr(sys, "frozen", False):
+            QMessageBox.information(
+                self,
+                "PDC Analyzer Update",
+                "Automatic installation is enabled in the packaged PDC Analyzer app.\n\n"
+                "This source-code test copy will not overwrite an installed application."
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "PDC Analyzer Update",
+            "PDC Analyzer will download the update in the background.\n\n"
+            "When the download is complete, the application will close "
+            "and install the new version automatically."
+        )
+
+        thread = threading.Thread(
+            target=self._download_update_worker,
+            args=(asset, latest_version),
+            daemon=True
+        )
+        thread.start()
+
+    def _download_update_worker(self, asset, latest_version):
+        try:
+            url = str(asset.get("browser_download_url", ""))
+            name = str(asset.get("name", "")).strip()
+            digest = str(asset.get("digest", "")).strip()
+
+            if not url or not name:
+                raise RuntimeError("The GitHub release does not contain a valid installer.")
+
+            update_dir = Path(tempfile.mkdtemp(prefix="pdc_analyzer_update_"))
+            destination = update_dir / name
+
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "PDC-Analyzer"}
+            )
+
+            sha256 = hashlib.sha256()
+
+            with urllib.request.urlopen(request, timeout=30) as response:
+                with destination.open("wb") as out:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        sha256.update(chunk)
+
+            if not destination.exists() or destination.stat().st_size == 0:
+                raise RuntimeError("The downloaded installer is empty.")
+
+            if digest.lower().startswith("sha256:"):
+                expected = digest.split(":", 1)[1].strip().lower()
+                actual = sha256.hexdigest().lower()
+                if expected and actual != expected:
+                    raise RuntimeError(
+                        "The downloaded installer failed the SHA-256 integrity check."
+                    )
+
+            self.update_download_ready.emit(str(destination), latest_version)
+
+        except Exception as exc:
+            self.update_install_failed.emit(str(exc))
+
+    def _install_downloaded_update(self, installer_path, latest_version):
+        try:
+            installer = Path(installer_path)
+
+            if os.name == "nt":
+                subprocess.Popen(
+                    [
+                        str(installer),
+                        "/VERYSILENT",
+                        "/SUPPRESSMSGBOXES",
+                        "/NORESTART",
+                        "/CLOSEAPPLICATIONS",
+                        "/RESTARTAPPLICATIONS"
+                    ],
+                    close_fds=True
+                )
+                QApplication.quit()
+                return
+
+            if sys.platform == "darwin":
+                current_app = self._current_macos_app_bundle()
+                if current_app is None:
+                    raise RuntimeError(
+                        "Could not determine the installed PDC Analyzer app location."
+                    )
+
+                helper = installer.parent / "install_pdc_update.sh"
+
+                helper_script = """#!/bin/bash
+DMG="$1"
+DEST="$2"
+PARENT_PID="$3"
+
+while kill -0 "$PARENT_PID" 2>/dev/null; do
+    sleep 0.5
+done
+
+ATTACH_OUTPUT="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -readonly)"
+MOUNT_POINT="$(printf '%s\n' "$ATTACH_OUTPUT" | /usr/bin/awk '/\/Volumes\// {sub(/^.*\t/, "", $0); print; exit}')"
+
+if [ -z "$MOUNT_POINT" ]; then
+    exit 20
+fi
+
+SRC="$MOUNT_POINT/PDC Analyzer.app"
+
+if [ ! -d "$SRC" ]; then
+    /usr/bin/hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1
+    exit 21
+fi
+
+if /bin/rm -rf "$DEST" 2>/dev/null && /usr/bin/ditto "$SRC" "$DEST" 2>/dev/null; then
+    :
+else
+    /usr/bin/osascript - "$SRC" "$DEST" <<'APPLESCRIPT'
+on run argv
+    set srcPath to item 1 of argv
+    set dstPath to item 2 of argv
+    do shell script "/bin/rm -rf " & quoted form of dstPath & " && /usr/bin/ditto " & quoted form of srcPath & " " & quoted form of dstPath with administrator privileges
+end run
+APPLESCRIPT
+fi
+
+/usr/bin/hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1
+/usr/bin/open "$DEST"
+"""
+                helper.write_text(helper_script, encoding="utf-8")
+                helper.chmod(0o755)
+
+                subprocess.Popen(
+                    [
+                        "/bin/bash",
+                        str(helper),
+                        str(installer),
+                        str(current_app),
+                        str(os.getpid())
+                    ],
+                    start_new_session=True
+                )
+
+                QApplication.quit()
+                return
+
+            raise RuntimeError(
+                "Automatic installation is not supported on this operating system."
+            )
+
+        except Exception as exc:
+            self.update_install_failed.emit(str(exc))
+
+    def _current_macos_app_bundle(self):
+        try:
+            executable = Path(sys.executable).resolve()
+            for parent in [executable] + list(executable.parents):
+                if parent.suffix.lower() == ".app":
+                    return parent
+        except Exception:
+            pass
+        return None
+
+    def _show_update_install_error(self, message):
+        QMessageBox.critical(
+            self,
+            "PDC Analyzer Update",
+            "The automatic update could not be completed.\n\n"
+            f"{message}\n\n"
+            "Your current installation has not been intentionally removed."
+        )
 
     def show_manual_update_result(self, message):
         QMessageBox.information(
