@@ -19,12 +19,12 @@ from PySide6.QtWidgets import (
     QComboBox, QPushButton, QLabel, QTextEdit, QSplitter, QGraphicsView,
     QGraphicsScene, QGraphicsPixmapItem, QGraphicsEllipseItem,
     QGraphicsLineItem, QGroupBox, QGraphicsItem, QGraphicsSimpleTextItem,
-    QDialog, QDialogButtonBox, QInputDialog
+    QDialog, QDialogButtonBox, QInputDialog, QScrollArea, QSizePolicy
 )
 
 
 APP_NAME = "Canine Impaction Analyzer"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 DEVELOPER = "Samer Mheissen"
 
 COPYRIGHT_TEXT = "© 2026 Samer Mheissen. All rights reserved."
@@ -470,8 +470,7 @@ class MainWindow(QMainWindow):
         # ----------------------------------------------------
 
         controls = QWidget()
-        controls.setMinimumWidth(430)
-        controls.setMaximumWidth(560)
+        controls.setMinimumWidth(500)
 
         controls_layout = QVBoxLayout(controls)
 
@@ -544,6 +543,10 @@ class MainWindow(QMainWindow):
 
         controls_layout.addLayout(patient_buttons)
 
+        self.open_data_folder_button = QPushButton("Open Patient Data Folder")
+        self.open_data_folder_button.clicked.connect(self.open_data_folder)
+        controls_layout.addWidget(self.open_data_folder_button)
+
         self.open_button = QPushButton("Open Panoramic Image")
         self.open_button.clicked.connect(self.open_image)
         controls_layout.addWidget(self.open_button)
@@ -591,7 +594,11 @@ class MainWindow(QMainWindow):
 
         self.results = QTextEdit()
         self.results.setReadOnly(True)
-        self.results.setMinimumHeight(330)
+        self.results.setMinimumHeight(360)
+        self.results.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding
+        )
         controls_layout.addWidget(self.results, 1)
 
         self.save_button = QPushButton("Save Patient")
@@ -621,9 +628,17 @@ class MainWindow(QMainWindow):
         self.view = ImageView()
         self.view.image_clicked.connect(self.record_click)
 
-        splitter.addWidget(controls)
+        controls_scroll = QScrollArea()
+        controls_scroll.setWidgetResizable(True)
+        controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        controls_scroll.setWidget(controls)
+        controls_scroll.setMinimumWidth(520)
+
+        splitter.addWidget(controls_scroll)
         splitter.addWidget(self.view)
+        splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
+        splitter.setSizes([540, 1060])
 
     def show_about(self):
         about = f"""
@@ -735,6 +750,24 @@ professional diagnosis, clinical judgment, or treatment planning.
         # the Close button reliably closes it on both macOS and Windows.
         dialog.exec()
 
+
+    def open_data_folder(self):
+        """Open the folder where patient records, OPGs, tracings, and results are stored."""
+        try:
+            path = str(self.data_dir)
+            if sys.platform == "darwin":
+                os.system(f'open "{path}"')
+            elif os.name == "nt":
+                os.startfile(path)
+            else:
+                import subprocess
+                subprocess.Popen(["xdg-open", path])
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Open Data Folder",
+                f"Could not open the patient data folder.\n\n{self.data_dir}\n\n{exc}"
+            )
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(
